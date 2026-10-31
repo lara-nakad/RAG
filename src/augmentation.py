@@ -33,13 +33,25 @@ def count_tokens(prompt: str, tokenizer):
     return len(token_ids)
 
 
+def extract_chunk_text(source):
+    """Extract a chunk's text directly from its original file."""
+
+    with open(source["file_path"], "r", encoding="utf-8") as file:
+        content = file.read()
+
+    return content[
+        source["first_character_index"]:
+        source["last_character_index"]
+    ]
+
+
 
 def load_tokenizer():
   """Load the tokenizer associated with our language model."""
   return  AutoTokenizer.from_pretrained(MODEL_NAME)
 
 
-def select_chunks(question: str, tokenizer, chunks: List[Chunk], token_budget: int):
+def select_chunks(question: str, tokenizer, chunks, token_budget: int):
     """Select chunks that fit within the prompt token budget."""
     
     selected_chunks = []
@@ -59,7 +71,7 @@ def select_chunks(question: str, tokenizer, chunks: List[Chunk], token_budget: i
     for chunk in chunks:
         candidate_chunks = selected_chunks + [chunk]
         
-        context = "\n\n".join(item.text for item in candidate_chunks)
+        context = "\n\n".join(extract_chunk_text(item) for item in candidate_chunks)
         #here res is the prompt we build as a text
         res = build_prompt(question, context)
         if count_tokens(res, tokenizer) <= token_budget:

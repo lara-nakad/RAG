@@ -20,7 +20,7 @@ def tokenize(text):
     return tokens
 
 
-def save_index(max_chunk_size = 2000):
+def index(max_chunk_size = 2000):
   max_chunk_size = int(max_chunk_size)
   chunks = collect_chunks(max_chunk_size)
   

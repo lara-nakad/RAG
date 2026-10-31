@@ -1,0 +1,6 @@
+ERROR: Cannot find key: --max_chunk_size
+Usage: __main__.py index <group>
+  available groups:      bm25 | chunks
+
+For detailed information on this command, run:
+  __main__.py index --help

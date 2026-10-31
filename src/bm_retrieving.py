@@ -85,7 +85,7 @@ def retreving(query, k, index):
   
 
 
-def ssearch(query, k=5):
+def search(query, k=5):
     index = load_bm25_index()
     top_chunks = retreving(query, k, index)
 

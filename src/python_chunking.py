@@ -177,7 +177,11 @@ def python_chunking(file_path: str, max_chunk_size)-> list[Chunk]:
 
     lines = content.splitlines(keepends = True)
     lines_start = get_line_starts(lines)
-    tree = ast.parse(content)
+    try:
+        tree = ast.parse(content, filename=file_path)
+    except SyntaxError:
+        print(f"Cannot parse Python file: {file_path}")
+        raise
 
     for child in ast.iter_child_nodes(tree):
         if not isinstance(child, STRUCTURAL_NODES):

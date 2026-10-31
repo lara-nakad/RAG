@@ -47,15 +47,15 @@ def answer(question, k, token_budget):
 	return answer, relevant_chunks
 
 
-def answer_dataset(dataset_path, save_directory, k = 5, token_budget = 2000):
-	with open(dataset_path, "r") as file:
+def answer_dataset(student_search_results_path, save_directory, k = 5, token_budget = 2000):
+	with open(student_search_results_path, "r") as file:
 		dataset_content = json.load(file)
 	output_directory = Path(save_directory)
 	output_directory.mkdir(parents=True, exist_ok=True)
-	output_path = output_directory / Path(dataset_path).name
+	output_path = output_directory / Path(student_search_results_path).name
 	print("Dataset loaded", flush=True)
 
-	dataset_questions = dataset_content["rag_questions"] #list of rag questions each one is on dict type
+	dataset_questions = dataset_content["search_results"] #list of rag questions each one is on dict type
 	results = []
 	load_resources()
 	print("Resources loaded successfully", flush=True)
@@ -64,14 +64,18 @@ def answer_dataset(dataset_path, save_directory, k = 5, token_budget = 2000):
 		question_id = question_data["question_id"]
 		question_text = question_data["question"]
 		print(f"Starting question: {question_id}", flush=True)
-		generated_answer, relevant_chunks = answer(question_text, k, token_budget)
+		relevant_chunks = question_data["retrieved_sources"]
+		prompt, chunks = select_chunks(question_text, tokenizer, relevant_chunks, token_budget)
+		if not chunks:
+			print("No relevant chunks fit within the token budget")
+		answer = generate_answer(prompt, model, tokenizer)
 
 		print(f"Finished question: {question_id}", flush=True)
 		res = MinimalAnswer(
 			question_id = question_id,
 			question = question_text,
-			retrieved_sources = relevant_chunks,
-			answer = generated_answer
+			retrieved_sources = chunks,
+			answer = answer
 		)
 
 		results.append(res)
