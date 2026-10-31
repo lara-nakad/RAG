@@ -1,0 +1,93 @@
+fire interface explanation:
+Python Fire is a library that automatically turns Python functions into command-line commands.
+
+Without Fire, you might need to write code to read terminal arguments manually. Fire handles that for you.
+For example, suppose we have this function:
+def save_index(max_chunk_size=2000):    print(f"Building index with chunks of size {max_chunk_size}")
+
+
+
+With Fire, we can call this function directly from the terminal.
+uv run python3 -m src save_index --max_chunk_size 2000
+
+
+Fire reads the command, identifies the function, extracts the argument, and calls the function with the supplied value.
+2. How does it work in our project?
+Imagine this is our src/__main__.py:
+import firefrom .bm_indexing import save_indexfrom .bm_retrieving import search, search_datasetdef main():    fire.Fire({        "save_index": save_index,        "search": search,        "search_dataset": search_dataset,    })if __name__ == "__main__":    main()
+
+
+
+Here is the flow:
+1. Terminal command
+uv run python3 -m src save_index --max_chunk_size 2000
+
+
+2. Python Fire
+Recognizes save_index and reads max_chunk_size=2000.
+
+
+3. Calls the Python function
+save_index(max_chunk_size=2000)
+
+
+4. Your indexing pipeline runs
+Collect chunks → tokenize text → build BM25 → save the index.
+
+
+Fire handles the command-line interface. It does not build the index itself; your save_index() function and the functions it calls do that work.
+3. Why do we use a dictionary?
+Inside fire.Fire(), we register commands using a dictionary:
+fire.Fire({"save_index": save_index,    
+          "search": search,
+          "search_dataset": search_dataset,})
+
+
+
+The dictionary connects a terminal command name to its Python function.
+Dictionary entry	Terminal command	Purpose
+"save_index": save_index	save_index	Builds and saves the BM25 index
+"search": search	search	Searches for relevant chunks for one question
+"search_dataset": search_dataset	search_dataset	Searches for relevant chunks for multiple dataset questions
+Notice that we write save_index, not save_index().
+- save_index refers to the function itself.
+- save_index() executes the function immediately.
+Fire needs the function itself so it can call it later when the matching terminal command is entered.
+4. How does Fire handle arguments?
+Consider this function:
+def save_index(max_chunk_size=2000):    ...
+
+
+
+The parameter has a default value of 2000.
+You can run:
+uv run python3 -m src save_index
+
+
+Fire uses the default value if no argument is supplied.
+Or you can specify a value:
+uv run python3 -m src save_index --max_chunk_size 1500
+
+
+Fire passes the provided value to the function. The function and its downstream code must still handle types correctly, which is why we explicitly converted max_chunk_size to an integer during debugging.
+5. How does Fire fit into our RAG architecture?
+Our project has several layers:
+Layer 1 — Command-line interface
+Python Fire in src/__main__.py receives commands and arguments.
+
+
+Layer 2 — Application functions
+Functions such as save_index(), search() and search_dataset() control the requested operation.
+
+
+Layer 3 — RAG components
+Chunking, collecting files, tokenization, BM25 indexing and retrieval perform the actual work.
+
+
+Layer 4 — Data and outputs
+The saved BM25 index, retrieved chunks and search-result JSON files.
+
+
+Final takeaway
+Python Fire is the bridge between the terminal and our Python functions. It lets us run and configure our RAG pipeline using commands without manually parsing terminal arguments.
+It doesn't replace our chunking, indexing or retrieval logic; it makes those operations accessible through a consistent command-line interface.

@@ -1,0 +1,494 @@
+What problem does RAG solve?
+    Before learning RAG, let's understand why we even need it.
+    Imagine ChatGPT was trained in 2024.
+    Now suppose a new library called SuperAI is released in 2026.
+
+You ask:
+    "How do I use SuperAI?"
+    What happens?
+    There are two possibilities:
+    Option 1
+    The model says:
+    "I don't know."
+    This is honest.
+
+Option 2
+    The model invents an answer.
+    Example:
+    "You should initialize SuperAI with the create_engine() function..."
+    But maybe that function doesn't even exist.
+    This is called a hallucination.
+    Why does this happen?
+    Because an LLM is not connected to your files.
+    Think of an LLM as a student who studied from a textbook.
+    After the exam, you hand them a completely new book they've never seen.
+    If you ask questions about the new book, they can't answer correctly because they never read it.
+    The model only knows what it learned during training.
+
+Suppose your company has
+
+50,000 Python files
+private documentation
+internal APIs
+
+No public AI has seen these files.
+If you ask:
+"Where is the login validation implemented?"
+The AI has absolutely no idea.
+So what do we need?
+Instead of expecting the AI to memorize everything, we let it look up the information first.
+Imagine this conversation:
+You:
+"Where is the login validation implemented?"
+The AI replies:
+"Give me one second."
+It searches your project.
+It finds:
+authentication/login.py
+It reads that file.
+Then it answers.
+That's exactly what RAG does.
+So what is RAG?
+RAG stands for
+Retrieval-Augmented Generation
+Let's split that into two words.
+Retrieval
+Retrieval simply means
+Find the information.
+Imagine Google.
+You search:
+Python list comprehension
+Google searches billions of pages.
+It retrieves the most relevant ones.
+It doesn't answer.
+It only finds documents.
+Generation
+Generation means
+Generate the answer.
+The AI reads the retrieved documents and writes an answer.
+So RAG is simply
+
+Question
+↓
+Find documents
+↓
+Read documents
+↓
+Generate answer
+
+Notice something important:
+The AI doesn't answer from memory.
+It answers from the retrieved documents.
+
+
+Pipeline:
+The RAG Pipeline
+Imagine you have this folder:
+documents/
+    python.md
+    java.md
+    networking.md
+    database.md
+
+A user asks:
+"What is TCP?"
+How does RAG answer this?
+
+It goes through 4 stages.
+Stage 1 — Indexing
+This happens before any user asks a question.
+Think of a librarian organizing books before the library opens.
+Without indexing, every question would require searching every file from scratch.
+Instead, we prepare everything once.
+python.md
+java.md
+networking.md
+database.md
+
+↓
+Read all files
+↓
+Prepare them for searching
+↓
+Save an index
+
+Important
+Indexing is done only once (or whenever the documents change).
+
+Stage 2 — Retrieval
+Now the user asks:
+"What is TCP?"
+The system doesn't open every file.
+Instead, it searches the index.
+Maybe it finds:
+networking.md
+with the paragraph
+TCP is a reliable transport protocol...
+That paragraph is retrieved.
+If you ask
+"What is SQL?"
+It retrieves something from
+database.md
+Notice that the AI still hasn't answered anything.
+It has only found useful information.
+
+Stage 3 — Augmentation
+Now we have the retrieved text.
+For example:
+TCP is a reliable transport protocol.
+It guarantees ordered delivery.
+...
+We attach (augment) this text to the user's question.
+The prompt sent to the model looks like this:
+Context:
+TCP is a reliable transport protocol.
+It guarantees ordered delivery.
+Question:
+What is TCP?
+Answer using only the context above.
+
+This is why it's called Retrieval-Augmented Generation.
+The model's prompt is augmented with retrieved information.
+
+Stage 4 — Generation
+Now Qwen reads:
+the question
+the retrieved context
+
+and writes
+TCP is a reliable transport protocol that guarantees reliable and ordered delivery of data between two endpoints.
+Notice something very important:
+The model is not searching anymore.
+It is simply reading the context you provided.
+
+The Complete Flow
+User Question
+      │
+      ▼
+Retrieve relevant documents
+      │
+      ▼
+Add those documents to the prompt
+      │
+      ▼
+LLM reads them
+      │
+      ▼
+Generate answer
+That's the entire RAG pipeline.
+
+
+Let's connect this to your project
+Your project uses the vLLM repository as its knowledge source.
+Instead of four small documents, you'll have thousands of files.
+When someone asks:
+"How do I configure LoRA?"
+Your program will:
+Question
+↓
+Search thousands of files
+↓
+Find the most relevant snippets
+↓
+Send only those snippets to Qwen
+↓
+Qwen answers
+Who does each stage?
+Stage	Who performs it?
+Indexing	     Your code
+Retrieval	     Your code
+Augmentation	 Your code
+Generation	    Qwen
+
+So you're building everything except the language model.
+One thing many beginners misunderstand
+People often think:
+"The AI searches my files."
+It doesn't.
+Your program searches the files.
+Your program chooses which snippets to send.
+The AI only sees those selected snippets.
+If your retrieval is bad, even the best AI will give a poor answer because it never saw the correct information.
+That's why this project emphasizes retrieval quality (Recall@k) more than perfect answer wording.
+
+
+
+Step 4: The pipeline
+
+Now let's examine each stage.
+
+Stage 1 — Indexing
+
+Question:
+
+Has the user asked anything yet?
+
+No.
+
+So why are we doing work?
+
+Because we are preparing.
+
+Think of Google.
+
+Google doesn't search the internet when you type something.
+
+Google has already indexed billions of pages.
+
+Your project does exactly the same thing.
+
+Imagine this folder:
+
+docs/
+
+python.md
+
+networking.md
+
+database.md
+
+Indexing means
+
+Read documents
+
+↓
+
+Prepare them
+
+↓
+
+Save information
+
+↓
+
+Ready for searching
+
+Nothing is answered here.
+
+We're only preparing.
+
+Think of it like a dictionary
+
+Suppose you have a dictionary.
+
+When you search for
+
+Apple
+
+Does the dictionary start reading every page?
+
+No.
+
+Someone already organized it alphabetically.
+
+That's indexing.
+
+Stage 2 — Retrieval
+
+Now the user asks
+
+What is TCP?
+
+Question:
+
+Do we send the question to Qwen immediately?
+
+No.
+
+First we search.
+
+Suppose we find
+
+networking.md
+
+with
+
+TCP is reliable...
+
+Great.
+
+We found useful information.
+
+Have we answered the user?
+
+Still no.
+
+We only found information.
+
+This stage is called retrieval.
+
+Stage 3 — Augmentation
+
+Now we have
+
+TCP is reliable...
+
+What do we do with it?
+
+We attach it to the question.
+
+Instead of asking
+
+What is TCP?
+
+we ask
+
+Context:
+
+TCP is reliable...
+
+Question:
+
+What is TCP?
+
+Notice the difference.
+
+Without context:
+
+Question only
+
+With RAG:
+
+Question
+
++
+
+Relevant documents
+
+This is called augmentation.
+
+We're augmenting the prompt.
+
+Stage 4 — Generation
+
+Now Qwen finally starts working.
+
+It receives
+
+Context
+
++
+
+Question
+
+and answers
+
+TCP is a reliable transport protocol...
+
+Notice something very important.
+
+Qwen never searched.
+
+It simply read what you gave it.
+
+This is the biggest misunderstanding
+
+Many beginners think
+
+Question
+
+↓
+
+Qwen
+
+↓
+
+Qwen searches files
+
+❌ Wrong.
+
+Actually it is
+
+Question
+
+↓
+
+Your code searches files
+
+↓
+
+Your code selects snippets
+
+↓
+
+Qwen reads snippets
+
+↓
+
+Answer
+
+The AI never opens your project.
+
+Your code does.
+
+
+
+
+STEP 1  ← WE ARE HERE
+────────────────────────
+Find all files
+        ↓
+Check extension
+        ↓
+Classify .py / .md
+
+
+STEP 2
+────────────────────────
+Read each file
+
+
+STEP 3
+────────────────────────
+Python → AST chunker
+Markdown → text chunker
+
+
+STEP 4
+────────────────────────
+Calculate character positions
+
+
+STEP 5
+────────────────────────
+Create chunk metadata
+
+
+STEP 6
+────────────────────────
+Build retrieval index
+
+
+STEP 7
+────────────────────────
+Retrieve relevant chunks
+
+
+STEP 8
+────────────────────────
+Send chunks + question to Qwen
+
+
+Chunk is what we store and search; MinimalSource is what we return as the source location of a search result.
+
+
+Indexing
+means:
+Prepare the chunks so that we can search them efficiently.
+
+
+TF-IDF
+is:
+One technique we use to represent the chunks and measure which words are important.
+
+benefit of indexing:
+The benefit we get here is that we don't rebuild the TF-IDF representation 
+of the entire repository for every question.
+
+Mechanism used to create the index: TF_IDF
+stands for term frequence * inverse document frequency
+
+each word to have high TF_IDF it should appears the most with respect to a chunk
+and rare across all chunks
+yaane lezm tkun b alb l chunk mbyne kter bas rare with respect to all chunks krml tkun hai l chunk specific
+yaane important bnsbe lal current chunk (kter l appearence taaeta) w manna kter mbyne bkl chunks la tkun rare (yaane to have a high TF_IDF)

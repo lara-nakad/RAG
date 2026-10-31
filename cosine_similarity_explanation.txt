@@ -1,0 +1,52 @@
+Cosine Similarity
+Cosine similarity is a method used to measure how similar two vectors are 
+  by comparing the direction/pattern of their values, rather than their size
+
+In our RAG system, we use it to compare the query's TF-IDF vector with the TF-IDF vector of each chunk.
+and always we should use the main trained vectorizer that is trained on the vocabulary and values as TF_IDF so here 
+it directly assign the value
+
+#cosine comparison
+A high cosine similarity score means the query and chunk have similar patterns of important words.
+A low score means their patterns are different.
+A score close to 1 means very similar direction.
+A score close to 0 means little or no similarity.
+
+Therefore, cosine similarity allows us to give each chunk a similarity score 
+and retrieve the chunks with the highest scores as the most relevant results.
+
+In short:
+Query → TF-IDF vector → compare with chunk vectors using cosine similarity → similarity scores → retrieve highest-scoring chunks
+
+### Small Example
+
+Suppose our vocabulary is:
+[cuda, python, gpu]
+
+The query:
+"cuda gpu"
+
+becomes:
+
+Query = [0.8, 0, 0.6]
+
+A relevant chunk:
+
+"cuda improves gpu performance"
+
+becomes:
+
+Chunk = [0.7, 0, 0.5]
+
+The two vectors have a very similar pattern:
+
+[high, 0, high]
+[high, 0, high]
+
+Therefore, their cosine similarity will be **high**, meaning the chunk is likely relevant to the query.
+
+An unrelated chunk might be:
+[0, 0.8, 0]
+
+Its pattern is very different from the query, so its cosine similarity will be **low**.
+**Idea:** Co  sine similarity checks whether the important values appear in similar positions in the two vectors.

@@ -1,0 +1,238 @@
+BM25 RETRIEVAL — STUDY NOTES
+
+1. WHAT PROBLEM ARE WE TRYING TO SOLVE?
+
+Imagine our repository contains 20,408 chunks.
+
+A user asks:
+"How does vLLM manage GPU memory?"
+
+Our system needs to find the chunks that explain GPU memory management. 
+We cannot manually read thousands of chunks every time someone asks a question.
+
+
+We need a mechanism that can:
+1. Look at the question.
+2. Compare it with the repository's chunks.
+3. Give each chunk a relevance score.
+4. Return the most relevant chunks.
+
+BM25 is the mechanism we use to rank those chunks.
+
+BM25 is a retrieval algorithm. It does not generate answers. 
+It helps us find information that may later be used to generate an answer.
+
+2. A TINY REPOSITORY EXAMPLE
+
+Imagine we have only three chunks:
+
+Chunk 0:
+"GPU memory is managed by the memory allocator."
+
+Chunk 1:
+"The scheduler decides which requests run next."
+
+Chunk 2:
+"Python functions can process input data."
+
+Our question is:
+"How is GPU memory managed?"
+
+Chunk 0 looks most relevant because it contains the words "GPU", "memory", and "managed".
+
+BM25 automates this kind of selection across thousands of chunks. It gives chunks scores so we can rank them.
+
+3. FIRST, TOKENIZE THE TEXT
+
+Before BM25 can compare text, we tokenize it: we split the text into tokens.
+
+Our current tokenizer is:
+
+re.findall(r"\b\w+\b", text.lower())
+
+For the question:
+
+"How is GPU memory managed?"
+
+The tokens are:
+
+["how", "is", "gpu", "memory", "managed"]
+
+For Chunk 0:
+
+"GPU memory is managed by the memory allocator."
+
+The tokens are:
+
+["gpu", "memory", "is", "managed", "by", "the", "memory", "allocator"]
+
+Notice that "memory" appears twice in Chunk 0.
+
+At this stage, we have not ranked anything. We have only prepared the text so BM25 can examine the words and count their occurrences.
+
+4. HOW DOES BM25 DECIDE WHICH CHUNK IS RELEVANT?
+
+BM25 considers three main ideas.
+
+A. Does the chunk contain the query words?
+
+The question contains the words "gpu", "memory", and "managed".
+
+Chunk 0 contains all three. Chunks 1 and 2 do not contain them in this example.
+
+Therefore, Chunk 0 will generally receive a higher relevance score.
+
+This is the basic idea behind keyword-based retrieval.
+
+B. Are the matched words rare or common?
+
+Imagine the word "the" appears in almost every chunk in the repository. Finding "the" tells us very little about which chunk answers the question.
+
+Now imagine the word "cuda" appears in only a small number of chunks. Finding "cuda" can be much more informative for a CUDA-related question.
+
+BM25 accounts for this using Inverse Document Frequency (IDF):
+- A word found in many chunks usually contributes less.
+- A word found in fewer chunks usually contributes more.
+
+In our project, each chunk acts as a document for BM25's calculations.
+
+C. How often does a word appear in the chunk?
+
+Compare these chunks:
+
+Chunk A:
+"GPU memory"
+
+Chunk B:
+"GPU memory memory memory memory memory"
+
+Chunk B contains more occurrences of "memory". More occurrences can increase its score, but BM25 uses term-frequency saturation: repeating a word does not keep increasing the score without limit.
+
+BM25 also adjusts for chunk length, so longer chunks do not automatically win just because they contain more words.
+
+5. HOW DOES BM25 TURN THIS INTO A SCORE?
+
+Conceptually, BM25 adds contributions from the query terms found in each chunk:
+
+Score(D, Q) = sum over query terms t of:
+             IDF(t) * TFWeight(t, D)
+
+Where:
+- D is a chunk.
+- Q is the user's query.
+- t is a query term.
+- IDF(t) represents how informative the term is across the corpus.
+- TFWeight(t, D) represents how the term's frequency in that chunk contributes, including frequency saturation and length normalization.
+
+We do not need to calculate this formula manually. The rank-bm25 library handles the calculations.
+
+The key idea:
+A chunk receives a higher score when it contains informative query terms in a useful way.
+
+BM25 scores are relevance scores, not probabilities.
+
+6. WHAT HAPPENS IN OUR ACTUAL CODE?
+
+Step 1 — Start with the repository chunks.
+
+We have 20,408 chunks of text.
+
+Step 2 — Tokenize each chunk.
+
+tokenized_corpus = [
+    re.findall(r"\b\w+\b", text.lower())
+    for text in list_texts
+]
+
+This turns every chunk into a list of tokens.
+
+Step 3 — Build the BM25 index.
+
+bm25 = BM25Okapi(tokenized_corpus)
+
+BM25 calculates and stores corpus-wide information needed for scoring, including word frequencies and rarity information.
+
+Step 4 — A user submits a question.
+
+query_tokens = re.findall(
+    r"\b\w+\b", query.lower()
+)
+
+We tokenize the question using the same basic rules.
+
+Step 5 — Score every chunk.
+
+scores = bm25.get_scores(query_tokens)
+
+This returns one relevance score for every indexed chunk.
+
+Step 6 — Return the top five chunks.
+
+indices = numpy.argsort(scores)[-5:][::-1]
+
+This selects the indices of the five highest-scoring chunks, ordered from highest score to lowest.
+
+IMPORTANT: get_scores() returns scores in the same order as the indexed chunks. Each score's index connects it to the corresponding chunk:
+
+scores[0] -> chunks[0]
+scores[1] -> chunks[1]
+scores[2] -> chunks[2]
+...
+
+Sorting the scores tells us which chunks to return.
+
+7. WHY DO WE NEED BM25 IN OUR RAG PROJECT?
+
+A RAG retrieval system has two major responsibilities:
+
+Retrieval:
+Find relevant source chunks.
+
+Generation:
+Use a language model to produce an answer based on the retrieved information.
+
+BM25 helps with retrieval. It searches using words and their statistical importance, without requiring a language model to process every chunk.
+
+However, BM25 mainly relies on lexical overlap: whether the words in the question match words in the chunks.
+
+If a question describes a concept using different words from those in the source, BM25 may rank the relevant chunk too low.
+
+This could help explain why code retrieval has a lower Recall@5 score, but it is not necessarily the only cause. Chunk boundaries, tokenization, and ranking behavior may also matter.
+
+8. CHECK YOUR UNDERSTANDING
+
+Question:
+A user asks, "How does GPU memory work?"
+
+Which chunk would BM25 generally be more likely to rank highly, assuming similar chunk lengths and no other relevant matches?
+
+Chunk A:
+"The GPU memory allocator manages memory."
+
+Chunk B:
+"The scheduler handles incoming requests."
+
+Answer:
+Chunk A.
+
+Why?
+Chunk A shares the informative query terms "GPU" and "memory", so it would generally receive a higher score than the unrelated chunk.
+
+9. THE MAIN IDEA TO REMEMBER
+
+BM25 does not understand code or natural language the way a person does. It ranks chunks by matching query terms and considering how informative those terms are, how often they occur, and how long the chunks are.
+
+The basic process is:
+
+Repository files
+    -> Chunks
+    -> Tokenize each chunk
+    -> Build the BM25 index
+
+User question
+    -> Tokenize the question
+    -> Score all indexed chunks
+    -> Sort scores
+    -> Return the top-k chunks
+
+BM25 finds potentially relevant source text. It does not generate the final answer.

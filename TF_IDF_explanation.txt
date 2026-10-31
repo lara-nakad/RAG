@@ -1,0 +1,321 @@
+# TF-IDF Indexing — Summary
+
+## 1. What are we doing?
+
+After chunking the repository, we have many `Chunk` objects.
+
+Each chunk contains:
+
+* `file_path`
+* `text`
+* `first_character_index`
+* `last_character_index`
+
+The next step is **indexing**.
+
+The goal of indexing is to transform the text of every chunk into a numerical representation that we can later use for searching.
+
+---
+
+## 2. First, get the text of every chunk
+
+We start with:
+
+```python
+texts = [chunk.text for chunk in chunks]
+```
+
+For example:
+
+```text
+chunks[0] → "python flask application"
+chunks[1] → "python database application"
+chunks[2] → "gpu memory configuration"
+```
+
+becomes:
+
+```python
+texts = [
+    "python flask application",
+    "python database application",
+    "gpu memory configuration"
+]
+```
+
+The order is very important:
+
+```text
+texts[0] → chunks[0]
+texts[1] → chunks[1]
+texts[2] → chunks[2]
+```
+
+We must preserve this relationship because later the TF-IDF matrix will use the same order.
+
+---
+
+## 3. What is TF-IDF?
+
+TF-IDF means:
+
+```text
+Term Frequency × Inverse Document Frequency
+```
+
+It measures how important a word is inside one document compared with the entire collection of documents.
+
+In our project:
+
+```text
+document = chunk
+collection = all chunks
+term = word/token
+```
+
+### TF — Term Frequency
+
+TF measures how often a word appears inside one chunk.
+
+```text
+word appears more often in this chunk
+                ↓
+            higher TF
+```
+
+### IDF — Inverse Document Frequency
+
+IDF measures how rare a word is across all chunks.
+
+```text
+word appears in many chunks
+                ↓
+            lower IDF
+```
+
+```text
+word appears in few chunks
+                ↓
+            higher IDF
+```
+
+### Together
+
+```text
+TF-IDF = TF × IDF
+```
+
+A word gets a high TF-IDF value when it is important in a particular chunk but not common throughout the entire collection.
+
+---
+
+## 4. We use `TfidfVectorizer`
+
+Instead of manually tokenizing the text and calculating TF and IDF ourselves, we use:
+
+```python
+from sklearn.feature_extraction.text import TfidfVectorizer
+```
+
+Then:
+
+```python
+vectorizer = TfidfVectorizer()
+```
+
+The `vectorizer` is the object responsible for processing our texts.
+
+It can:
+
+* tokenize the text
+* build the vocabulary
+* calculate TF-IDF
+* create numerical vectors
+
+At this point, we have only created the tool.
+
+---
+
+## 5. `fit_transform()`
+
+We then write:
+
+```python
+matrix = vectorizer.fit_transform(texts)
+```
+
+This combines two operations:
+
+```python
+vectorizer.fit(texts)
+```
+
+and:
+
+```python
+matrix = vectorizer.transform(texts)
+```
+
+### `fit()`
+
+`fit()` examines all chunks and learns the vocabulary and IDF information.
+
+For example:
+
+```text
+python
+flask
+application
+database
+gpu
+memory
+configuration
+```
+
+### `transform()`
+
+`transform()` uses that learned information to convert every chunk into numerical TF-IDF values.
+
+---
+
+## 6. The TF-IDF matrix
+
+Suppose we have:
+
+```text
+3 chunks
+```
+
+and the vocabulary contains:
+
+```text
+7 words
+```
+
+Then the matrix has:
+
+```text
+3 rows × 7 columns
+```
+
+The rows represent chunks:
+
+```text
+row 0 → chunks[0]
+row 1 → chunks[1]
+row 2 → chunks[2]
+```
+
+The columns represent vocabulary terms.
+
+Conceptually:
+
+```text
+              vocabulary
+          python flask gpu memory ...
+chunk 0     0.4   0.7  0.0   0.0
+chunk 1     0.5   0.0  0.0   0.0
+chunk 2     0.0   0.0  0.6   0.6
+```
+
+The numbers are the TF-IDF values.
+
+---
+
+## 7. Why is the row-to-chunk relationship important?
+
+The matrix only contains numerical information.
+
+It does not directly contain our complete `Chunk` information.
+
+For example:
+
+```text
+matrix row 157
+```
+
+must still be connected to:
+
+```text
+chunks[157]
+```
+
+because `chunks[157]` contains:
+
+```text
+file_path
+first_character_index
+last_character_index
+```
+
+This allows retrieval to eventually say:
+
+```text
+row 157
+   ↓
+chunks[157]
+   ↓
+file path + character positions
+```
+
+and produce the required `MinimalSource`.
+
+---
+
+## 8. Our current indexing pipeline
+
+So far:
+
+```text
+Repository files
+       ↓
+Chunking
+       ↓
+chunks
+       ↓
+extract chunk.text
+       ↓
+texts
+       ↓
+TfidfVectorizer
+       ↓
+fit + transform
+       ↓
+TF-IDF matrix
+```
+
+The important code is currently:
+
+```python
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+texts = [chunk.text for chunk in chunks]
+
+vectorizer = TfidfVectorizer()
+
+matrix = vectorizer.fit_transform(texts)
+```
+
+---
+
+## 9. What we have after this
+
+We now have:
+
+```text
+vectorizer
+    ↓
+learned vocabulary + IDF information
+
+matrix
+    ↓
+TF-IDF numerical representation of every chunk
+
+chunks
+    ↓
+original source information
+```
+
+Together, these will become the persisted index.
+
+The next step is to understand **how to save these three pieces (`vectorizer`, `matrix`, and `chunks`) into `data/processed/`**, so that we do not have to rebuild the index every time we run a search.
